@@ -37,7 +37,7 @@ impl<'a> AnnotationWithStyle<'a> {
 
         // Make sure we only try to draw the spanned area
         area.width =
-            (area.width as usize).min(self.annotation.span.len() * BYTE_DISPLAY_WIDTH) as u16;
+            (area.width as usize).min(self.annotation.span.len() * BYTE_DISPLAY_WIDTH - 1) as u16;
 
         // Set background colour
         let color = self.colors[&self.annotation.parser_id];

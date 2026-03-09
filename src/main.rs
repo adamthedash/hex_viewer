@@ -58,21 +58,6 @@ fn render(
 
     render_binary_view(frame, left, files, colors);
     render_parser_view(frame, right, parser, colors);
-
-    // let vertical = Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).spacing(1);
-    // let horizontal = Layout::horizontal([Constraint::Percentage(33); 3]).spacing(1);
-    // let [top, main] = frame.area().layout(&vertical);
-    // let [left, middle, right] = main.layout(&horizontal);
-    //
-    // let title = Line::from_iter([
-    //     Span::from("Block Widget").bold(),
-    //     Span::from(" (Press 'q' to quit)"),
-    // ]);
-    // frame.render_widget(title.centered(), top);
-    //
-    // render_bordered_block(frame, left);
-    // render_styled_block(frame, middle);
-    // render_custom_bordered_block(frame, right);
 }
 
 fn render_binary_view(
@@ -87,23 +72,11 @@ fn render_binary_view(
     frame.render_widget(binary, area);
 
     for (_filename, bytes) in files {
-        // First render the underlying bytes
-        let byte_line = bytes
-            .iter()
-            .take(inner_area.width as usize)
-            .map(|b| format!("{:0>2x}", b))
-            .collect::<Vec<_>>()
-            .join(" ");
-
-        let byte_line = Line::raw(byte_line);
-        frame.render_widget(byte_line, inner_area);
-
-        // Then render the annotations on top & the lines below
+        // Render the annotation hierarchy first (easier to render top-down)
         let annotation = load_annotations(bytes);
         let max_depth = annotation.max_depth();
         let annotation_rect = Rect {
-            y: inner_area.y + 1,
-            // TODO: max_depth should never be bigger than u16
+            // max_depth should never be bigger than u16
             height: max_depth as u16,
             ..inner_area
         };
@@ -114,8 +87,22 @@ fn render_binary_view(
         .render(annotation_rect, frame.buffer_mut());
 
         // Adjust the area accordingly
-        inner_area.y += max_depth as u16 + 1;
-        inner_area.height -= max_depth as u16 + 1;
+        inner_area.y += max_depth as u16;
+        inner_area.height -= max_depth as u16;
+
+        // Render byte line under annotations so it aligns with lower level hierarchy nodes
+        let byte_line = bytes
+            .iter()
+            .take(inner_area.width as usize)
+            .map(|b| format!("{:0>2x}", b))
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        let byte_line = Line::raw(byte_line);
+        frame.render_widget(byte_line, inner_area);
+
+        inner_area.y += 1;
+        inner_area.height -= 1;
     }
 }
 
