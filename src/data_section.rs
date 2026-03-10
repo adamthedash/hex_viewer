@@ -35,7 +35,7 @@ impl<'a> AnnotatedFile<'a> {
             bytes,
             annotation,
             colors,
-            scroll_x: -2,
+            scroll_x: 0,
             max_depth,
         }
     }

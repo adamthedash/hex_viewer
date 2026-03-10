@@ -58,22 +58,26 @@ fn main() -> Result<()> {
                     modifiers: KeyModifiers::CONTROL,
                     ..
                 }) => break Ok(()),
+                // Left/right scrolling
                 Event::Key(KeyEvent {
                     code: dir @ (KeyCode::Left | KeyCode::Right),
-                    modifiers: KeyModifiers::NONE,
+                    modifiers: modifier @ KeyModifiers::NONE | modifier @ KeyModifiers::SHIFT,
                     ..
                 }) => {
-                    let dir = match dir {
+                    let mut dir = match dir {
                         KeyCode::Left => -1,
                         KeyCode::Right => 1,
                         _ => unreachable!(),
                     };
+                    // Hold down shift for super speed
+                    if modifier == KeyModifiers::SHIFT {
+                        dir *= 32;
+                    }
 
                     for file in &mut annotated_files {
-                        file.scroll_x += dir;
+                        file.scroll_x = 0.max(file.scroll_x + dir);
                     }
                 }
-                // Left/right scrolling
                 _ => (),
             }
         }
