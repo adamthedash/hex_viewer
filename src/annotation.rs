@@ -1,13 +1,5 @@
 use std::ops::Range;
 
-use ratatui::{
-    buffer::Buffer,
-    layout::Rect,
-    style::{Color, Style},
-    widgets::Widget,
-};
-use rustc_hash::FxHashMap;
-
 pub struct Annotation {
     /// Spans for sibling annotations must not overlap
     /// Child spans must not go outside their parent's
@@ -16,90 +8,6 @@ pub struct Annotation {
     pub parser_id: String,
     pub value: String,
     pub children: Vec<Annotation>,
-}
-
-/// Created ephemerally so they can be rendered with colour
-pub struct AnnotationWithStyle<'a> {
-    pub annotation: &'a Annotation,
-    pub colors: &'a FxHashMap<String, Color>,
-}
-
-const BYTE_DISPLAY_WIDTH: usize = 3;
-
-impl<'a> AnnotationWithStyle<'a> {
-    /// NOTE: area height should match the max depth of the annotation
-    /// area top-left should point to the top-left of where this annotation is to be drawn
-    fn render_recurse(&self, mut area: Rect, buf: &mut Buffer) {
-        if area.height == 0 {
-            // Ran out of space, so don't render anything
-            return;
-        }
-
-        // Make sure we only try to draw the spanned area
-        area.width =
-            (area.width as usize).min(self.annotation.span.len() * BYTE_DISPLAY_WIDTH - 1) as u16;
-
-        // Set background colour
-        let color = self.colors[&self.annotation.parser_id];
-        let Color::Rgb(r, g, b) = color else {
-            unreachable!()
-        };
-        let brightness = r as f32 * 0.299 + g as f32 * 0.587 + b as f32 * 0.114;
-        buf.set_style(
-            area,
-            Style::default().bg(color).fg(if brightness > 128. {
-                Color::Black
-            } else {
-                Color::White
-            }),
-        );
-
-        // Draw parsed values as text
-        let (text_x, text) = if self.annotation.value.len() <= area.width as usize {
-            // enough space
-            let text_x = area.width as usize - self.annotation.value.len();
-            (text_x, self.annotation.value.as_str())
-        } else {
-            // Not enough, truncate
-            let text =
-                &self.annotation.value[(self.annotation.value.len() - area.width as usize)..];
-            (0, text)
-        };
-
-        buf.set_string(area.x + text_x as u16, area.y, text, Style::default());
-
-        // Recurse
-        for child in &self.annotation.children {
-            let offset_from_parent =
-                (child.span.start - self.annotation.span.start) * BYTE_DISPLAY_WIDTH;
-            if offset_from_parent >= area.width as usize {
-                // Gone off the right, stop rendering
-                break;
-            }
-
-            let child_area = Rect {
-                x: area.x + offset_from_parent as u16,
-                width: area.width - offset_from_parent as u16,
-                y: area.y + 1,
-                height: area.height - 1,
-            };
-
-            AnnotationWithStyle {
-                annotation: child,
-                colors: self.colors,
-            }
-            .render_recurse(child_area, buf);
-        }
-    }
-}
-
-impl Widget for AnnotationWithStyle<'_> {
-    fn render(self, area: Rect, buf: &mut Buffer)
-    where
-        Self: Sized,
-    {
-        self.render_recurse(area, buf);
-    }
 }
 
 impl Annotation {

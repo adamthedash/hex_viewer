@@ -1,5 +1,6 @@
 mod annotation;
 mod data_loader;
+mod data_section;
 
 use std::hash::BuildHasher;
 
@@ -9,11 +10,12 @@ use ratatui::crossterm::event;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::Color;
 use ratatui::text::Line;
-use ratatui::widgets::{Block, Paragraph, Widget};
+use ratatui::widgets::{Block, Paragraph};
 use rustc_hash::{FxBuildHasher, FxHashMap as HashMap};
 
-use crate::annotation::{AnnotationWithStyle, load_annotations};
+use crate::annotation::load_annotations;
 use crate::data_loader::{Parser, load_batch, load_parser};
+use crate::data_section::AnnotatedFile;
 
 /// Generate unique colours for each parser
 fn generate_colours(identifiers: &[String]) -> HashMap<String, Color> {
@@ -72,42 +74,19 @@ fn render_binary_view(
     frame.render_widget(binary, area);
 
     for (_filename, bytes) in files {
-        // Render the annotation hierarchy first (easier to render top-down)
         let annotation = load_annotations(bytes);
-        let max_depth = inner_area.height.min(annotation.max_depth() as u16);
-        let annotation_rect = Rect {
-            // max_depth should never be bigger than u16
-            height: max_depth,
-            ..inner_area
-        };
-        AnnotationWithStyle {
-            annotation: &annotation,
-            colors,
-        }
-        .render(annotation_rect, frame.buffer_mut());
 
-        // Adjust the area accordingly
-        inner_area.y += max_depth as u16;
-        inner_area.height -= max_depth as u16;
+        let file = AnnotatedFile::new(bytes, &annotation, colors);
+        frame.render_widget(&file, inner_area);
 
-        if inner_area.height == 0 {
-            // Ran out of space, stop rendering
+        // Update the remaining area available
+        let moved = inner_area.height.min(file.height() as u16);
+        inner_area.y += moved;
+        inner_area.height -= moved;
+
+        if inner_area.is_empty() {
             break;
         }
-
-        // Render byte line under annotations so it aligns with lower level hierarchy nodes
-        let byte_line = bytes
-            .iter()
-            .take(inner_area.width as usize)
-            .map(|b| format!("{:0>2x}", b))
-            .collect::<Vec<_>>()
-            .join(" ");
-
-        let byte_line = Line::raw(byte_line);
-        frame.render_widget(byte_line, inner_area);
-
-        inner_area.y += 1;
-        inner_area.height -= 1;
     }
 }
 
