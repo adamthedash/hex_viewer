@@ -74,10 +74,10 @@ fn render_binary_view(
     for (_filename, bytes) in files {
         // Render the annotation hierarchy first (easier to render top-down)
         let annotation = load_annotations(bytes);
-        let max_depth = annotation.max_depth();
+        let max_depth = inner_area.height.min(annotation.max_depth() as u16);
         let annotation_rect = Rect {
             // max_depth should never be bigger than u16
-            height: max_depth as u16,
+            height: max_depth,
             ..inner_area
         };
         AnnotationWithStyle {
@@ -89,6 +89,11 @@ fn render_binary_view(
         // Adjust the area accordingly
         inner_area.y += max_depth as u16;
         inner_area.height -= max_depth as u16;
+
+        if inner_area.height == 0 {
+            // Ran out of space, stop rendering
+            break;
+        }
 
         // Render byte line under annotations so it aligns with lower level hierarchy nodes
         let byte_line = bytes

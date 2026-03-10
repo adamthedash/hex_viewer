@@ -65,6 +65,7 @@ impl<'a> AnnotationWithStyle<'a> {
                 &self.annotation.value[(self.annotation.value.len() - area.width as usize)..];
             (0, text)
         };
+
         buf.set_string(area.x + text_x as u16, area.y, text, Style::default());
 
         // Recurse
