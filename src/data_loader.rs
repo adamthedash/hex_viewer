@@ -1,37 +1,10 @@
 use rustc_hash::FxHashMap as HashMap;
-use std::path::Path;
 
-use glob::glob;
 use ratatui::{
     style::{Color, Style},
     text::Line,
     widgets::Paragraph,
 };
-
-use crate::annotation::{Annotation, load_annotations};
-
-/// Load a batch of raw file contents
-pub fn load_batch(max_files: usize) -> Vec<(String, Vec<u8>, Annotation)> {
-    let root = Path::new("/home/adam/projects/rust/poe_data_tools/data1");
-    let mut paths = glob(&format!("{}/**/*.tdt", root.display()))
-        .unwrap()
-        .filter_map(Result::ok)
-        .collect::<Vec<_>>();
-
-    paths.sort();
-
-    paths
-        .iter()
-        .take(max_files)
-        .map(|p| {
-            let path = p.strip_prefix(root).unwrap().display().to_string();
-            let contents = std::fs::read(p).unwrap();
-            let annotation = load_annotations(&contents);
-
-            (path, contents, annotation)
-        })
-        .collect()
-}
 
 /// A representation of the entire parser that is applied to each file
 /// Does not hold any state
@@ -141,22 +114,4 @@ impl From<&str> for Parser {
             inner: vec![],
         }
     }
-}
-
-/// Load the parser spec to be applied to the file
-pub fn load_parser() -> Parser {
-    (
-        "tdt_file",
-        vec![
-            ("version", vec![]),
-            (
-                "strings",
-                vec![
-                    "le_u32", //
-                    "le_u16",
-                ],
-            ),
-        ],
-    )
-        .into()
 }

@@ -1,6 +1,7 @@
 mod annotation;
 mod data_loader;
 mod data_section;
+mod dummy_data;
 
 use std::hash::BuildHasher;
 
@@ -13,8 +14,9 @@ use ratatui::widgets::Block;
 use rustc_hash::{FxBuildHasher, FxHashMap as HashMap};
 use tui_logger::{TuiLoggerWidget, TuiWidgetState};
 
-use crate::data_loader::{Parser, load_batch, load_parser};
+use crate::data_loader::Parser;
 use crate::data_section::AnnotatedFile;
+use crate::dummy_data::{load_batch, load_parser};
 
 /// Generate unique colours for each parser
 fn generate_colours(identifiers: &[String]) -> HashMap<String, Color> {
@@ -112,7 +114,7 @@ fn render_binary_view(
     frame: &mut Frame,
     area: Rect,
     files: &[AnnotatedFile<'_>],
-    colors: &HashMap<String, Color>,
+    _colors: &HashMap<String, Color>,
 ) {
     let binary = Block::bordered().title("Binary View");
     let mut inner_area = binary.inner(area);

@@ -1,5 +1,3 @@
-use std::ops::Range;
-
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -55,34 +53,29 @@ impl<'a> AnnotatedFile<'a> {
         }
 
         // Convert annotation region to screen space
-        let Range { start, end } = self.annotation.span;
-        let span_screen = Range {
-            start: (start as isize - self.scroll_x) * BYTE_DISPLAY_WIDTH as isize + area.x as isize,
-            end: (end as isize - self.scroll_x) * BYTE_DISPLAY_WIDTH as isize - 1 + area.x as isize,
-        };
+        let (start, end) = self.annotation.result.span();
 
-        if (span_screen.start >= (area.x + area.width) as isize)
-            || (span_screen.end < area.x as isize)
+        let start =
+            (start as isize - self.scroll_x) * BYTE_DISPLAY_WIDTH as isize + area.x as isize;
+        let end = end.map(|end| {
+            (end as isize - self.scroll_x) * BYTE_DISPLAY_WIDTH as isize - 1 + area.x as isize
+        });
+
+        if (start >= (area.x + area.width) as isize) || end.is_some_and(|end| end < area.x as isize)
         {
             // Annotation isn't on the screen, so don't render
             return;
         }
-        log::info!(
-            "{} span: {:?}",
-            self.annotation.parser_id,
-            self.annotation.span
-        );
-        log::info!("screen: {:?}", span_screen);
 
         // Crop to screen space
-        let x_start = (area.x as isize).max(span_screen.start) as u16;
-        let x_end = ((area.x + area.width) as isize).min(span_screen.end) as u16;
+        let start = (area.x as isize).max(start) as u16;
+        let end = ((area.x + area.width) as isize).min(end.unwrap_or(isize::MAX)) as u16;
+
         let draw_area = Rect {
-            x: x_start,
-            width: x_end - x_start,
+            x: start,
+            width: end - start,
             ..area
         };
-        log::info!("cropped: {:?}", x_start..x_end);
 
         // Set background colour
         let color = self.colors[&self.annotation.parser_id];
@@ -100,9 +93,20 @@ impl<'a> AnnotatedFile<'a> {
         );
 
         // Draw parsed values as text
-        let text =
-            &self.annotation.value[..self.annotation.value.len().min(draw_area.width as usize)];
-        let text_x = draw_area.width as usize - text.len();
+        let text = format!("{}", self.annotation.result);
+        let (text_x, text) = if self.annotation.result.is_ok() {
+            // Show value right-justified within highlighted parser span
+            let text = &text[..text.len().min(draw_area.width as usize)];
+            let text_x = draw_area.width as usize - text.len();
+            (text_x, text)
+        } else {
+            // Failures will be at the end, so allow the error message to spill over
+            let text_x = 0;
+            let text = &text[..text
+                .len()
+                .min(((area.x + area.width) - draw_area.x) as usize)];
+            (text_x, text)
+        };
 
         buf.set_string(
             draw_area.x + text_x as u16,

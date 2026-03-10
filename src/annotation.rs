@@ -1,31 +1,83 @@
-use std::ops::Range;
+use std::{fmt::Display, ops::Range};
 
 pub struct Annotation {
-    /// Spans for sibling annotations must not overlap
-    /// Child spans must not go outside their parent's
-    /// Annotations should be sorted in order of their span starting position
-    pub span: Range<usize>,
     pub parser_id: String,
-    pub value: String,
     pub children: Vec<Annotation>,
+    pub result: AnnotationResult,
+}
+
+pub enum AnnotationResult {
+    Success {
+        span: Range<usize>,
+        value: String,
+    },
+
+    /// Not enough data for the parser
+    Incomplete {
+        start: usize,
+    },
+
+    /// Child parser has failed for any reason
+    Child {
+        start: usize,
+    },
+
+    /// Enough data, but data was unexpected
+    /// Eg. parse_digit("A")
+    /// Child parsers have succeeded, but something at this level has failed
+    /// Eg. Length-take of chars suceeded, but resulting string was in the expected format
+    Invalid {
+        span: Range<usize>,
+        reason: String,
+    },
 }
 
 impl Annotation {
-    fn new(
-        parser_id: &str,
-        span: Range<usize>,
-        value: impl std::fmt::Debug,
-        children: Vec<Annotation>,
-    ) -> Self {
+    fn new(parser_id: &str, children: Vec<Self>, result: AnnotationResult) -> Self {
         Self {
-            span,
             parser_id: parser_id.to_owned(),
-            value: format!("{:?}", value),
             children,
+            result,
         }
     }
 
-    /// How deep does this annotation tree go?
+    pub fn success(
+        parser_id: &str,
+        span: Range<usize>,
+        value: impl std::fmt::Debug,
+        children: Vec<Self>,
+    ) -> Self {
+        Self::new(
+            parser_id,
+            children,
+            AnnotationResult::Success {
+                span,
+                value: format!("{value:?}"),
+            },
+        )
+    }
+
+    pub fn incomplete(parser_id: &str, start: usize, children: Vec<Self>) -> Self {
+        Self::new(parser_id, children, AnnotationResult::Incomplete { start })
+    }
+
+    pub fn child(parser_id: &str, start: usize, children: Vec<Self>) -> Self {
+        Self::new(parser_id, children, AnnotationResult::Child { start })
+    }
+
+    pub fn invalid(
+        parser_id: &str,
+        span: Range<usize>,
+        reason: String,
+        children: Vec<Self>,
+    ) -> Self {
+        Self::new(
+            parser_id,
+            children,
+            AnnotationResult::Invalid { span, reason },
+        )
+    }
+
     pub fn max_depth(&self) -> usize {
         1 + self
             .children
@@ -36,47 +88,28 @@ impl Annotation {
     }
 }
 
-/// Load some fake annotations for a given file
-pub fn load_annotations(bytes: &[u8]) -> Annotation {
-    type A = Annotation;
-
-    let version = u32::from_le_bytes(bytes[0..4].try_into().unwrap());
-    let version_a = A::new("tdt_file[0]/version", 0..4, version, vec![]);
-
-    let num_chars = u32::from_le_bytes(bytes[4..8].try_into().unwrap());
-    let num_chars_a = A::new("tdt_file[1]/strings[0]/le_u32", 4..8, num_chars, vec![]);
-
-    let mut chars = vec![];
-    let mut chars_a = vec![];
-    for i in 0..num_chars as usize {
-        let start = 8 + 2 * i;
-        let span = start..start + 2;
-        let value = u16::from_le_bytes(bytes[span.clone()].try_into().unwrap());
-
-        let anno = A::new("tdt_file[1]/strings[1]/le_u16", span, value, vec![]);
-        chars.push(value);
-        chars_a.push(anno);
+impl AnnotationResult {
+    pub fn span(&self) -> (usize, Option<usize>) {
+        use AnnotationResult::*;
+        match self {
+            Success { span, .. } | Invalid { span, .. } => (span.start, Some(span.end)),
+            Incomplete { start } | Child { start } => (*start, None),
+        }
     }
 
-    let strings = String::from_utf16(&chars).unwrap();
-    let strings_a = A::new(
-        "tdt_file[1]/strings",
-        4..chars_a.last().unwrap().span.end,
-        &strings,
-        std::iter::once(num_chars_a).chain(chars_a).collect(),
-    );
-
-    #[derive(Debug)]
-    struct TDTFile {
-        version: u32,
-        strings: String,
+    pub fn is_ok(&self) -> bool {
+        matches!(self, AnnotationResult::Success { .. })
     }
-    let tdt_file = TDTFile { version, strings };
+}
 
-    A::new(
-        "tdt_file",
-        0..strings_a.span.end,
-        tdt_file,
-        vec![version_a, strings_a],
-    )
+impl Display for AnnotationResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use AnnotationResult::*;
+        match self {
+            Success { value, .. } => f.write_str(value),
+            Incomplete { .. } => f.write_str("ERR(INCOMPLETE)"),
+            Child { .. } => f.write_str("ERR(CHILD)"),
+            Invalid { reason, .. } => write!(f, "ERR({reason})"),
+        }
+    }
 }
