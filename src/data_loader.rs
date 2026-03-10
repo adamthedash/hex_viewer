@@ -8,8 +8,10 @@ use ratatui::{
     widgets::Paragraph,
 };
 
+use crate::annotation::{Annotation, load_annotations};
+
 /// Load a batch of raw file contents
-pub fn load_batch(max_files: usize) -> Vec<(String, Vec<u8>)> {
+pub fn load_batch(max_files: usize) -> Vec<(String, Vec<u8>, Annotation)> {
     let root = Path::new("/home/adam/projects/rust/poe_data_tools/data1");
     let mut paths = glob(&format!("{}/**/*.tdt", root.display()))
         .unwrap()
@@ -22,10 +24,11 @@ pub fn load_batch(max_files: usize) -> Vec<(String, Vec<u8>)> {
         .iter()
         .take(max_files)
         .map(|p| {
-            let contents = std::fs::read(p).unwrap();
             let path = p.strip_prefix(root).unwrap().display().to_string();
+            let contents = std::fs::read(p).unwrap();
+            let annotation = load_annotations(&contents);
 
-            (path, contents)
+            (path, contents, annotation)
         })
         .collect()
 }

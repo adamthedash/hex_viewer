@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -16,7 +18,7 @@ pub struct AnnotatedFile<'a> {
     pub colors: &'a FxHashMap<String, Color>,
 
     /// Offset in bytes
-    pub scroll_x: usize,
+    pub scroll_x: isize,
 
     max_depth: usize,
 }
@@ -35,7 +37,7 @@ impl<'a> AnnotatedFile<'a> {
             bytes,
             annotation,
             colors,
-            scroll_x: 0,
+            scroll_x: -2,
             max_depth,
         }
     }
@@ -46,16 +48,41 @@ impl<'a> AnnotatedFile<'a> {
     }
 
     /// NOTE: area height should match the max depth of the annotation
-    /// area top-left should point to the top-left of where this annotation is to be drawn
-    fn render_annotation(&self, mut area: Rect, buf: &mut Buffer) {
+    fn render_annotation(&self, area: Rect, buf: &mut Buffer) {
         if area.height == 0 {
             // Ran out of space, so don't render anything
             return;
         }
 
-        // Make sure we only try to draw the spanned area
-        area.width =
-            (area.width as usize).min(self.annotation.span.len() * BYTE_DISPLAY_WIDTH - 1) as u16;
+        // Convert annotation region to screen space
+        let Range { start, end } = self.annotation.span;
+        let span_screen = Range {
+            start: (start as isize - self.scroll_x) * BYTE_DISPLAY_WIDTH as isize + area.x as isize,
+            end: (end as isize - self.scroll_x) * BYTE_DISPLAY_WIDTH as isize - 1 + area.x as isize,
+        };
+
+        if (span_screen.start >= (area.x + area.width) as isize)
+            || (span_screen.end < area.x as isize)
+        {
+            // Annotation isn't on the screen, so don't render
+            return;
+        }
+        log::info!(
+            "{} span: {:?}",
+            self.annotation.parser_id,
+            self.annotation.span
+        );
+        log::info!("screen: {:?}", span_screen);
+
+        // Crop to screen space
+        let x_start = (area.x as isize).max(span_screen.start) as u16;
+        let x_end = ((area.x + area.width) as isize).min(span_screen.end) as u16;
+        let draw_area = Rect {
+            x: x_start,
+            width: x_end - x_start,
+            ..area
+        };
+        log::info!("cropped: {:?}", x_start..x_end);
 
         // Set background colour
         let color = self.colors[&self.annotation.parser_id];
@@ -64,7 +91,7 @@ impl<'a> AnnotatedFile<'a> {
         };
         let brightness = r as f32 * 0.299 + g as f32 * 0.587 + b as f32 * 0.114;
         buf.set_style(
-            area,
+            draw_area,
             Style::default().bg(color).fg(if brightness > 128. {
                 Color::Black
             } else {
@@ -73,37 +100,28 @@ impl<'a> AnnotatedFile<'a> {
         );
 
         // Draw parsed values as text
-        let (text_x, text) = if self.annotation.value.len() <= area.width as usize {
-            // enough space
-            let text_x = area.width as usize - self.annotation.value.len();
-            (text_x, self.annotation.value.as_str())
-        } else {
-            // Not enough, truncate
-            let text =
-                &self.annotation.value[(self.annotation.value.len() - area.width as usize)..];
-            (0, text)
-        };
+        let text =
+            &self.annotation.value[..self.annotation.value.len().min(draw_area.width as usize)];
+        let text_x = draw_area.width as usize - text.len();
 
-        buf.set_string(area.x + text_x as u16, area.y, text, Style::default());
+        buf.set_string(
+            draw_area.x + text_x as u16,
+            draw_area.y,
+            text,
+            Style::default(),
+        );
 
         // Recurse
         for child in &self.annotation.children {
-            let offset_from_parent =
-                (child.span.start - self.annotation.span.start) * BYTE_DISPLAY_WIDTH;
-            if offset_from_parent >= area.width as usize {
-                // Gone off the right, stop rendering
-                break;
-            }
-
             let child_area = Rect {
-                x: area.x + offset_from_parent as u16,
-                width: area.width - offset_from_parent as u16,
                 y: area.y + 1,
                 height: area.height - 1,
+                ..area
             };
 
             AnnotatedFile {
                 annotation: child,
+                max_depth: self.max_depth - 1,
                 ..*self
             }
             .render_annotation(child_area, buf);
@@ -144,15 +162,26 @@ impl Widget for &AnnotatedFile<'_> {
         }
 
         // Render byte line under annotations so it aligns with lower level hierarchy nodes
-        let byte_line = self
+        let num_spaces = ((-self.scroll_x) * BYTE_DISPLAY_WIDTH as isize)
+            .clamp(0, available_area.width as isize) as usize;
+
+        let bytes = self
             .bytes
             .iter()
+            .skip(self.scroll_x.max(0) as usize)
             .take(available_area.width as usize / BYTE_DISPLAY_WIDTH)
             .map(|b| format!("{:0>2x}", b))
             .collect::<Vec<_>>()
             .join(" ");
 
-        let byte_line = Line::raw(byte_line);
+        let byte_line = Line::raw(
+            [
+                " ".repeat(num_spaces), //
+                bytes,
+            ]
+            .concat(),
+        );
+
         byte_line.render(available_area, buf);
     }
 }
