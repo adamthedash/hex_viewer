@@ -1,10 +1,9 @@
-use rustc_hash::FxHashMap as HashMap;
-
 use ratatui::{
     style::{Color, Style},
     text::Line,
     widgets::Paragraph,
 };
+use rustc_hash::FxHashMap as HashMap;
 
 /// A representation of the entire parser that is applied to each file
 /// Does not hold any state
@@ -15,33 +14,6 @@ pub struct Parser {
 }
 
 impl Parser {
-    /// Displays the parser higherarchy
-    pub fn to_paragraph(&self) -> Paragraph<'_> {
-        Paragraph::new(self.to_lines(0))
-    }
-
-    fn to_lines(&self, depth: usize) -> Vec<Line<'_>> {
-        let mut lines = vec![];
-
-        let indent = " ".repeat(depth);
-
-        lines.push(Line::from(vec![
-            indent.clone().into(), //
-            self.name.as_str().into(),
-            (if !self.inner.is_empty() { "(" } else { "" }).into(),
-        ]));
-
-        for child in &self.inner {
-            lines.extend(child.to_lines(depth + 1));
-        }
-
-        if !self.inner.is_empty() {
-            lines.push(Line::from(vec![indent.into(), ")".into()]));
-        }
-
-        lines
-    }
-
     pub fn to_paragraph_styled(&self, colours: &HashMap<String, Color>) -> Paragraph<'_> {
         Paragraph::new(self.to_lines_styled(colours, 0, ""))
     }

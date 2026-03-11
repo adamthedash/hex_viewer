@@ -602,6 +602,7 @@ dependencies = [
  "dirs",
  "glob",
  "log",
+ "num-traits",
  "ratatui",
  "rustc-hash",
  "tui-logger",

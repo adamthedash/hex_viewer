@@ -1,7 +1,10 @@
+#![feature(trait_alias)]
+
 mod annotation;
 mod data_loader;
 mod data_section;
 mod dummy_data;
+pub mod parser;
 
 use std::hash::BuildHasher;
 

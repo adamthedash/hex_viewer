@@ -1,11 +1,13 @@
 use std::{fmt::Display, ops::Range};
 
+#[derive(Debug)]
 pub struct Annotation {
     pub parser_id: String,
     pub children: Vec<Annotation>,
     pub result: AnnotationResult,
 }
 
+#[derive(Debug)]
 pub enum AnnotationResult {
     Success {
         span: Range<usize>,

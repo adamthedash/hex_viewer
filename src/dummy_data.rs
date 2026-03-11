@@ -1,10 +1,12 @@
 use std::path::Path;
 
+use glob::glob;
+
 use crate::{
     annotation::{Annotation, AnnotationResult},
     data_loader::Parser,
+    parser::specific::tdt_file,
 };
-use glob::glob;
 
 /// Load a batch of raw file contents
 pub fn load_batch(max_files: usize) -> Vec<(String, Vec<u8>, Annotation)> {
@@ -23,7 +25,8 @@ pub fn load_batch(max_files: usize) -> Vec<(String, Vec<u8>, Annotation)> {
             let path = p.strip_prefix(root).unwrap().display().to_string();
             let contents = std::fs::read(p).unwrap();
             // let annotation = load_annotations_err_invalid(&contents);
-            let annotation = load_annotations_err_middle(&contents);
+            // let annotation = load_annotations_err_middle(&contents);
+            let annotation = load_annotation(&contents);
 
             (path, contents, annotation)
         })
@@ -35,17 +38,28 @@ pub fn load_parser() -> Parser {
     (
         "tdt_file",
         vec![
-            ("version", vec![]),
+            ("le_u32", vec![]),
             (
                 "strings",
-                vec![
-                    "le_u32", //
-                    "le_u16",
-                ],
+                vec![(
+                    "length_repeat",
+                    vec![
+                        "le_u32", //
+                        "le_u16",
+                    ],
+                )],
             ),
         ],
     )
         .into()
+}
+
+/// Apply a parser and produce some annotations
+fn load_annotation(mut bytes: &[u8]) -> Annotation {
+    match tdt_file()(&mut bytes) {
+        Ok((_, annotation)) => annotation,
+        Err(annotation) => annotation,
+    }
 }
 
 /// Load some fake annotations for a given file
