@@ -8,7 +8,7 @@ use parser::TDTFile;
 use crate::parser::{Parser, annotation::Annotation, spec::ParserSpec};
 
 /// Load a batch of raw file contents
-pub fn load_batch(max_files: usize) -> Vec<(String, Vec<u8>, Annotation)> {
+pub fn load_batch(max_files: usize) -> (impl Parser, Vec<(String, Vec<u8>, Annotation)>) {
     let root = Path::new("/home/adam/projects/rust/poe_data_tools/data1");
     let mut paths = glob(&format!("{}/**/*.tdt", root.display()))
         .unwrap()
@@ -19,7 +19,7 @@ pub fn load_batch(max_files: usize) -> Vec<(String, Vec<u8>, Annotation)> {
 
     let mut parser = TDTFile::new();
 
-    paths
+    let contents = paths
         .iter()
         .take(max_files)
         .map(|p| {
@@ -29,7 +29,9 @@ pub fn load_batch(max_files: usize) -> Vec<(String, Vec<u8>, Annotation)> {
 
             (path, contents, annotation)
         })
-        .collect()
+        .collect();
+
+    (parser, contents)
 }
 
 /// Load the parser spec to be applied to the file
