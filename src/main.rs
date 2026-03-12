@@ -21,8 +21,8 @@ use tui_logger::{TuiLoggerWidget, TuiWidgetState};
 
 use crate::{
     data_section::AnnotatedFile,
-    dummy_data::{load_batch, load_parser},
-    parser::{Parser, annotation::Annotation, spec::ParserSpec},
+    dummy_data::load_batch,
+    parser::{Parser, spec::ParserSpec},
 };
 
 /// Generate unique colours for each parser

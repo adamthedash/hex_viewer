@@ -1,9 +1,10 @@
+pub mod data;
 pub mod parser;
 
 use std::path::Path;
 
 use glob::glob;
-use parser::TDTFile;
+use parser::TDTParser;
 
 use crate::parser::{Parser, annotation::Annotation};
 
@@ -17,7 +18,7 @@ pub fn load_batch(max_files: usize) -> (impl Parser, Vec<(String, Vec<u8>, Annot
 
     paths.sort();
 
-    let mut parser = TDTFile::new();
+    let mut parser = TDTParser::new();
 
     let contents = paths
         .iter()
