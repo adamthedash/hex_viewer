@@ -1,12 +1,8 @@
-use super::class::Result;
-use crate::{
+use crate::parser::{
     annotation::Annotation,
-    data_loader::ParserSpec,
-    parser::{
-        class::{Checkpoint, LengthRepeat, Parser, TryMap, U16LE, U32LE},
-        generic::fold,
-        specific::{self},
-    },
+    generic::{Checkpoint, LengthRepeat, Parser, Result, TryMap, U16LE, U32LE},
+    helpers::FoldResult,
+    spec::ParserSpec,
 };
 
 fn strings() -> impl Parser<Output = String> {
@@ -15,6 +11,12 @@ fn strings() -> impl Parser<Output = String> {
         |data: Vec<_>| String::from_utf16(&data),
         "utf16_to_string",
     )
+}
+
+#[derive(Debug)]
+pub struct TDTFileData {
+    version: u32,
+    strings: String,
 }
 
 pub struct TDTFile {
@@ -33,7 +35,7 @@ impl TDTFile {
 }
 
 impl Parser for TDTFile {
-    type Output = specific::TDTFile;
+    type Output = TDTFileData;
 
     fn name(&self) -> String {
         "tdt_file".to_owned()
@@ -48,17 +50,14 @@ impl Parser for TDTFile {
 
     fn parse(&mut self, input: &mut &[u8]) -> Result<Self::Output> {
         let (version, span, child_annotations) =
-            fold(self.version.parse(input), vec![], 0, &self.name(), 0)?;
+            self.version.parse(input).fold(vec![], 0, &self.name(), 0)?;
 
-        let (strings, span, child_annotations) = fold(
-            self.strings.parse(input),
-            child_annotations,
-            span.end,
-            &self.name(),
-            1,
-        )?;
+        let (strings, span, child_annotations) =
+            self.strings
+                .parse(input)
+                .fold(child_annotations, span.end, &self.name(), 1)?;
 
-        let tdt_file = specific::TDTFile { version, strings };
+        let tdt_file = TDTFileData { version, strings };
 
         let annotation =
             Annotation::success(&self.name(), 0..span.end, &tdt_file, child_annotations);

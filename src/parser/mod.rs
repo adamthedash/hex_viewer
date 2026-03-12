@@ -1,4 +1,4 @@
-pub mod class;
-pub mod class_specific;
+pub mod annotation;
 pub mod generic;
-pub mod specific;
+pub mod helpers;
+pub mod spec;

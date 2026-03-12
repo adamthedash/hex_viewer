@@ -74,24 +74,3 @@ impl ParserSpec {
         me.chain(children).collect()
     }
 }
-
-impl<I> From<(&str, Vec<I>)> for ParserSpec
-where
-    ParserSpec: From<I>,
-{
-    fn from((name, inner): (&str, Vec<I>)) -> Self {
-        Self {
-            name: name.into(),
-            inner: inner.into_iter().map(ParserSpec::from).collect(),
-        }
-    }
-}
-
-impl From<&str> for ParserSpec {
-    fn from(name: &str) -> Self {
-        Self {
-            name: name.into(),
-            inner: vec![],
-        }
-    }
-}

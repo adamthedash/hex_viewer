@@ -1,8 +1,6 @@
 #![feature(trait_alias)]
 #![feature(type_alias_impl_trait)]
 
-mod annotation;
-mod data_loader;
 mod data_section;
 mod dummy_data;
 pub mod parser;
@@ -21,9 +19,9 @@ use rustc_hash::{FxBuildHasher, FxHashMap as HashMap};
 use tui_logger::{TuiLoggerWidget, TuiWidgetState};
 
 use crate::{
-    data_loader::ParserSpec,
     data_section::AnnotatedFile,
     dummy_data::{load_batch, load_parser},
+    parser::spec::ParserSpec,
 };
 
 /// Generate unique colours for each parser

@@ -7,7 +7,7 @@ use ratatui::{
 };
 use rustc_hash::FxHashMap;
 
-use crate::annotation::Annotation;
+use crate::parser::annotation::Annotation;
 
 /// Created ephemerally so they can be rendered with colour
 pub struct AnnotatedFile<'a> {
