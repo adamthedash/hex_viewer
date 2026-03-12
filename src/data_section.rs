@@ -78,7 +78,15 @@ impl<'a> AnnotatedFile<'a> {
         };
 
         // Set background colour
-        let color = self.colors[&self.annotation.parser_id];
+        let color = *self
+            .colors
+            .get(&self.annotation.parser_id)
+            .unwrap_or_else(|| {
+                panic!(
+                    "No colour for parser {:?}: {:#?}",
+                    self.annotation.parser_id, self.colors
+                )
+            });
         let Color::Rgb(r, g, b) = color else {
             unreachable!()
         };

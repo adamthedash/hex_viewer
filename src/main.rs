@@ -44,15 +44,15 @@ fn main() -> Result<()> {
 
     let logger_state = TuiWidgetState::new();
 
-    let (parser, files) = load_batch(10);
-    // let files = files
-    //     .into_iter()
-    //     .filter(|(_, _, a)| !a.result.is_ok())
-    //     .collect::<Vec<_>>();
+    let (parser, files) = load_batch(10000);
     let parser = parser.spec();
     let colors = generate_colours(&parser.identifiers());
+    let identifiers = parser.identifiers();
 
     let mut scroll_y = 0;
+    let mut errors_only = true;
+
+    let mut scroll_to_identifier = 0;
 
     let mut annotated_files = files
         .iter()
@@ -62,9 +62,21 @@ fn main() -> Result<()> {
     ratatui::run(|terminal| {
         loop {
             {
-                let annotated_files = &annotated_files[scroll_y..];
+                let annotated_files = annotated_files
+                    .iter()
+                    .filter(|f| !errors_only || !f.annotation.result.is_ok())
+                    .skip(scroll_y)
+                    .collect::<Vec<_>>();
+
                 terminal.draw(|frame| {
-                    render(frame, annotated_files, &parser, &colors, &logger_state)
+                    render(
+                        frame,
+                        &annotated_files,
+                        &parser,
+                        &colors,
+                        &logger_state,
+                        &identifiers[scroll_to_identifier],
+                    )
                 })?;
             }
 
@@ -113,6 +125,39 @@ fn main() -> Result<()> {
                     scroll_y = scroll_y.saturating_add_signed(dir);
                     scroll_y = scroll_y.min(annotated_files.len() - 1);
                 }
+                // Toggle show errors only
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('e'),
+                    modifiers: KeyModifiers::NONE,
+                    ..
+                }) => {
+                    errors_only ^= true;
+                    scroll_y = 0;
+                }
+                // Align with parser
+                Event::Key(KeyEvent {
+                    code: dir @ (KeyCode::Char('a') | KeyCode::Char('d')),
+                    modifiers: KeyModifiers::NONE,
+                    ..
+                }) => {
+                    let dir = match dir {
+                        KeyCode::Char('a') => -1,
+                        KeyCode::Char('d') => 1,
+                        _ => unreachable!(),
+                    };
+                    scroll_to_identifier = (scroll_to_identifier as isize + dir)
+                        .clamp(0, identifiers.len() as isize - 1)
+                        as usize;
+                    let parser_id = &identifiers[scroll_to_identifier];
+
+                    for file in &mut annotated_files {
+                        if let Some(anno) = file.annotation.find_annotation(parser_id) {
+                            let (start, _) = anno.result.span();
+                            file.scroll_x = start as isize;
+                        }
+                    }
+                }
+
                 _ => (),
             }
         }
@@ -122,37 +167,38 @@ fn main() -> Result<()> {
 /// Render the UI with various blocks.
 fn render(
     frame: &mut Frame,
-    files: &[AnnotatedFile<'_>],
+    files: &[&AnnotatedFile<'_>],
     parser: &ParserSpec,
     colors: &HashMap<String, Color>,
     tui_state: &TuiWidgetState,
+    highlight: &str,
 ) {
     let horizontal =
         Layout::horizontal([Constraint::Fill(1), Constraint::Percentage(20)]).spacing(1);
     let [binary_area, parser_area] = frame.area().layout(&horizontal);
 
-    let vertical =
-        Layout::vertical([Constraint::Percentage(33), Constraint::Percentage(66)]).spacing(1);
-    let [parser_area, logger] = parser_area.layout(&vertical);
-
     render_binary_view(frame, binary_area, files, colors);
-    render_parser_view(frame, parser_area, parser, colors);
 
-    let logger_widget = TuiLoggerWidget::default()
-        .block(Block::bordered().title("Logs"))
-        .output_timestamp(None)
-        .output_file(false)
-        .output_level(None)
-        .output_target(false)
-        .output_line(false)
-        .state(tui_state);
-    frame.render_widget(logger_widget, logger);
+    // let vertical =
+    //     Layout::vertical([Constraint::Percentage(33), Constraint::Percentage(66)]).spacing(1);
+    // let [parser_area, logger] = parser_area.layout(&vertical);
+    render_parser_view(frame, parser_area, parser, colors, highlight);
+
+    // let logger_widget = TuiLoggerWidget::default()
+    //     .block(Block::bordered().title("Logs"))
+    //     .output_timestamp(None)
+    //     .output_file(false)
+    //     .output_level(None)
+    //     .output_target(false)
+    //     .output_line(false)
+    //     .state(tui_state);
+    // frame.render_widget(logger_widget, logger);
 }
 
 fn render_binary_view(
     frame: &mut Frame,
     area: Rect,
-    files: &[AnnotatedFile<'_>],
+    files: &[&AnnotatedFile<'_>],
     _colors: &HashMap<String, Color>,
 ) {
     // Border
@@ -171,7 +217,7 @@ fn render_binary_view(
 
     for file in files {
         // Render main bytes / annotation view
-        frame.render_widget(file, main_area);
+        frame.render_widget(*file, main_area);
 
         // Update the remaining area available
         let moved = main_area.height.min(file.height() as u16);
@@ -194,6 +240,7 @@ fn render_parser_view(
     area: Rect,
     parser: &ParserSpec,
     colors: &HashMap<String, Color>,
+    highlight: &str,
 ) {
     // let vertical =
     //     Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)]).spacing(1);
@@ -201,7 +248,7 @@ fn render_parser_view(
 
     // Parser view
     let text = parser
-        .to_paragraph_styled(colors)
+        .to_paragraph_styled(colors, Some(highlight))
         .block(Block::bordered().title("Parser View"));
 
     frame.render_widget(text, area);
