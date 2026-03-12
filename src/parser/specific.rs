@@ -12,8 +12,8 @@ fn strings() -> impl Parser<String> {
 
 #[derive(Debug)]
 pub struct TDTFile {
-    version: u32,
-    strings: String,
+    pub version: u32,
+    pub strings: String,
 }
 
 pub fn tdt_file() -> impl Parser<TDTFile> {

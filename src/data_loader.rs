@@ -7,13 +7,21 @@ use rustc_hash::FxHashMap as HashMap;
 
 /// A representation of the entire parser that is applied to each file
 /// Does not hold any state
-#[derive(Debug)]
-pub struct Parser {
-    name: String,
-    inner: Vec<Parser>,
+#[derive(Debug, PartialEq, Eq)]
+pub struct ParserSpec {
+    pub name: String,
+    pub inner: Vec<ParserSpec>,
 }
 
-impl Parser {
+impl ParserSpec {
+    /// Parser with no children
+    pub fn empty(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            inner: vec![],
+        }
+    }
+
     pub fn to_paragraph_styled(&self, colours: &HashMap<String, Color>) -> Paragraph<'_> {
         Paragraph::new(self.to_lines_styled(colours, 0, ""))
     }
@@ -67,19 +75,19 @@ impl Parser {
     }
 }
 
-impl<I> From<(&str, Vec<I>)> for Parser
+impl<I> From<(&str, Vec<I>)> for ParserSpec
 where
-    Parser: From<I>,
+    ParserSpec: From<I>,
 {
     fn from((name, inner): (&str, Vec<I>)) -> Self {
         Self {
             name: name.into(),
-            inner: inner.into_iter().map(Parser::from).collect(),
+            inner: inner.into_iter().map(ParserSpec::from).collect(),
         }
     }
 }
 
-impl From<&str> for Parser {
+impl From<&str> for ParserSpec {
     fn from(name: &str) -> Self {
         Self {
             name: name.into(),

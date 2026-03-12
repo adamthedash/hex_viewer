@@ -1,4 +1,5 @@
 #![feature(trait_alias)]
+#![feature(type_alias_impl_trait)]
 
 mod annotation;
 mod data_loader;
@@ -9,17 +10,21 @@ pub mod parser;
 use std::hash::BuildHasher;
 
 use color_eyre::Result;
-use ratatui::Frame;
-use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
-use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::Color;
-use ratatui::widgets::Block;
+use ratatui::{
+    Frame,
+    crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
+    layout::{Constraint, Layout, Rect},
+    style::Color,
+    widgets::Block,
+};
 use rustc_hash::{FxBuildHasher, FxHashMap as HashMap};
 use tui_logger::{TuiLoggerWidget, TuiWidgetState};
 
-use crate::data_loader::Parser;
-use crate::data_section::AnnotatedFile;
-use crate::dummy_data::{load_batch, load_parser};
+use crate::{
+    data_loader::ParserSpec,
+    data_section::AnnotatedFile,
+    dummy_data::{load_batch, load_parser},
+};
 
 /// Generate unique colours for each parser
 fn generate_colours(identifiers: &[String]) -> HashMap<String, Color> {
@@ -91,7 +96,7 @@ fn main() -> Result<()> {
 fn render(
     frame: &mut Frame,
     files: &[AnnotatedFile<'_>],
-    parser: &Parser,
+    parser: &ParserSpec,
     colors: &HashMap<String, Color>,
     tui_state: &TuiWidgetState,
 ) {
@@ -145,7 +150,7 @@ fn render_binary_view(
 fn render_parser_view(
     frame: &mut Frame,
     area: Rect,
-    parser: &Parser,
+    parser: &ParserSpec,
     colors: &HashMap<String, Color>,
 ) {
     // let vertical =
