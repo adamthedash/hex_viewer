@@ -44,7 +44,7 @@ fn main() -> Result<()> {
 
     let logger_state = TuiWidgetState::new();
 
-    let (parser, files) = load_batch(100000);
+    let (parser, files) = load_batch(10);
     // let files = files
     //     .into_iter()
     //     .filter(|(_, _, a)| !a.result.is_ok())

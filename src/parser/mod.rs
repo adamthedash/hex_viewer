@@ -28,3 +28,23 @@ pub trait Parser {
         }
     }
 }
+
+/// Blanket impl for boxed parsers
+impl<P> Parser for Box<P>
+where
+    P: Parser + ?Sized,
+{
+    type Output = P::Output;
+
+    fn name(&self) -> String {
+        (**self).name()
+    }
+
+    fn spec(&self) -> ParserSpec {
+        (**self).spec()
+    }
+
+    fn parse(&mut self, input: &mut &[u8]) -> Result<Self::Output> {
+        (**self).parse(input)
+    }
+}
