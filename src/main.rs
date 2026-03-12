@@ -3,7 +3,7 @@
 
 mod data_section;
 mod dummy_data;
-pub mod parser;
+mod parser;
 
 use std::hash::BuildHasher;
 

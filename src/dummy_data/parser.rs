@@ -1,7 +1,9 @@
 use crate::parser::{
+    Parser, Result,
     annotation::Annotation,
-    generic::{Checkpoint, LengthRepeat, Parser, Result, TryMap, U16LE, U32LE},
+    combinator::{Checkpoint, LengthRepeat, TryMap},
     helpers::FoldResult,
+    num::{U16LE, U32LE},
     spec::ParserSpec,
 };
 

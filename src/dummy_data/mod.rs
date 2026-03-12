@@ -5,7 +5,7 @@ use std::path::Path;
 use glob::glob;
 use parser::TDTFile;
 
-use crate::parser::{annotation::Annotation, generic::Parser, spec::ParserSpec};
+use crate::parser::{Parser, annotation::Annotation, spec::ParserSpec};
 
 /// Load a batch of raw file contents
 pub fn load_batch(max_files: usize) -> Vec<(String, Vec<u8>, Annotation)> {

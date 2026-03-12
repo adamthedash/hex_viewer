@@ -88,6 +88,17 @@ impl Annotation {
             .max()
             .unwrap_or(0)
     }
+
+    /// Helper function which updates child annotations with information from the parent parser
+    pub fn update_with_parent(&mut self, span_offset: usize, prefix: &str) {
+        self.parser_id.insert_str(0, prefix);
+
+        self.result.shift_span(span_offset);
+
+        for child in &mut self.children {
+            child.update_with_parent(span_offset, prefix);
+        }
+    }
 }
 
 impl AnnotationResult {
@@ -101,6 +112,17 @@ impl AnnotationResult {
 
     pub fn is_ok(&self) -> bool {
         matches!(self, AnnotationResult::Success { .. })
+    }
+
+    pub fn shift_span(&mut self, offset: usize) {
+        use AnnotationResult::*;
+        match self {
+            Success { span, .. } | Invalid { span, .. } => {
+                span.start += offset;
+                span.end += offset;
+            }
+            Incomplete { start } | Child { start } => *start += offset,
+        }
     }
 }
 
