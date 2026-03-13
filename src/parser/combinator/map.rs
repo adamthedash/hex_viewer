@@ -10,7 +10,11 @@ pub struct TryMap<I, F> {
     func_name: String,
 }
 
-impl<I, F> TryMap<I, F> {
+impl<I, F, O, E> TryMap<I, F>
+where
+    I: Parser,
+    F: FnMut(I::Output) -> std::result::Result<O, E>,
+{
     pub fn new(inner: I, func: F, func_name: &str) -> Self {
         Self {
             inner,
@@ -71,7 +75,11 @@ pub struct Map<I, F> {
     func_name: String,
 }
 
-impl<I, F> Map<I, F> {
+impl<I, F, O> Map<I, F>
+where
+    I: Parser,
+    F: FnMut(I::Output) -> O,
+{
     pub fn new(inner: I, func: F, func_name: &str) -> Self {
         Self {
             inner,
@@ -90,17 +98,13 @@ where
     type Output = O;
 
     fn name(&self) -> String {
-        "map".to_owned()
+        format!("map({})", self.func_name)
     }
 
     fn spec(&self) -> ParserSpec {
         ParserSpec {
             name: self.name(),
-            inner: vec![
-                self.inner.spec(),
-                // Dummy "parser" in spec for function name
-                ParserSpec::empty(&self.func_name),
-            ],
+            inner: vec![self.inner.spec()],
         }
     }
 

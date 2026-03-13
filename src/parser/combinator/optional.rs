@@ -4,6 +4,7 @@ use crate::parser::{
     Parser, Result, annotation::Annotation, helpers::FoldResult, spec::ParserSpec,
 };
 
+/// Optional parser. If inner parser fails, then this succeed but produces no value
 pub struct Opt<I>(I);
 
 impl<I> Parser for Opt<I>
