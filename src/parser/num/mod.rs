@@ -53,8 +53,6 @@ impl Parser for U16LE {
         const BYTE_SIZE: usize = std::mem::size_of::<u16>();
 
         if input.len() < BYTE_SIZE {
-            // Parser ID, start need to come from the context in which the entire parser sits
-            // Or alternatively we bubble up local state and adjust in parent?
             return Err(Annotation::incomplete(&self.name(), 0, vec![]));
         }
 
@@ -62,6 +60,37 @@ impl Parser for U16LE {
             .try_into()
             .expect("Already verified length above");
         let value = u16::from_le_bytes(bytes);
+
+        // Move input along
+        *input = &input[BYTE_SIZE..];
+
+        let annotation = Annotation::success(&self.name(), 0..BYTE_SIZE, value, vec![]);
+
+        Ok((value, annotation))
+    }
+}
+
+pub struct U8;
+
+impl Parser for U8 {
+    type Output = u8;
+
+    fn name(&self) -> String {
+        "u8".to_owned()
+    }
+
+    fn spec(&self) -> ParserSpec {
+        ParserSpec::empty(self.name())
+    }
+
+    fn parse(&mut self, input: &mut &[u8]) -> Result<Self::Output> {
+        const BYTE_SIZE: usize = std::mem::size_of::<u8>();
+
+        if input.len() < BYTE_SIZE {
+            return Err(Annotation::incomplete(&self.name(), 0, vec![]));
+        }
+
+        let value = input[0];
 
         // Move input along
         *input = &input[BYTE_SIZE..];

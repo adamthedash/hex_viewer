@@ -30,17 +30,13 @@ where
     type Output = O;
 
     fn name(&self) -> String {
-        "try_map".to_owned()
+        format!("try_map({})", self.func_name)
     }
 
     fn spec(&self) -> ParserSpec {
         ParserSpec {
             name: self.name(),
-            inner: vec![
-                self.inner.spec(),
-                // Dummy "parser" in spec for function name
-                ParserSpec::empty(&self.func_name),
-            ],
+            inner: vec![self.inner.spec()],
         }
     }
 

@@ -22,8 +22,12 @@ impl ParserSpec {
         }
     }
 
-    pub fn to_paragraph_styled(&self, colours: &HashMap<String, Color>) -> Paragraph<'_> {
-        Paragraph::new(self.to_lines_styled(colours, 0, ""))
+    pub fn to_paragraph_styled(
+        &self,
+        colours: &HashMap<String, Color>,
+        highlight: Option<&str>,
+    ) -> Paragraph<'_> {
+        Paragraph::new(self.to_lines_styled(colours, 0, "", highlight))
     }
 
     fn to_lines_styled(
@@ -31,6 +35,7 @@ impl ParserSpec {
         colors: &HashMap<String, Color>,
         depth: usize,
         prefix: &str,
+        highlight: Option<&str>,
     ) -> Vec<Line<'_>> {
         let mut lines = vec![];
 
@@ -38,17 +43,27 @@ impl ParserSpec {
 
         let id = format!("{}{}", prefix, self.name);
 
+        let mut style = Style::default().fg(colors[&id]);
+        if highlight.is_some_and(|parser_id| id == parser_id) {
+            style = style.bg(Color::White);
+        }
+
         lines.push(
             Line::from(vec![
                 indent.clone().into(), //
                 self.name.as_str().into(),
                 (if !self.inner.is_empty() { "(" } else { "" }).into(),
             ])
-            .style(Style::default().fg(colors[&id])),
+            .style(style),
         );
 
         for (i, child) in self.inner.iter().enumerate() {
-            lines.extend(child.to_lines_styled(colors, depth + 1, &format!("{id}[{i}]/")));
+            lines.extend(child.to_lines_styled(
+                colors,
+                depth + 1,
+                &format!("{id}[{i}]/"),
+                highlight,
+            ));
         }
 
         if !self.inner.is_empty() {

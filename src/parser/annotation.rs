@@ -99,6 +99,19 @@ impl Annotation {
             child.update_with_parent(span_offset, prefix);
         }
     }
+
+    /// Recurse through the annotation tree and find the first instance that matches the given
+    /// parser
+    pub fn find_annotation(&self, parser_id: &str) -> Option<&Annotation> {
+        if self.parser_id == parser_id {
+            return Some(self);
+        }
+
+        self.children
+            .iter()
+            .flat_map(|c| c.find_annotation(parser_id))
+            .next()
+    }
 }
 
 impl AnnotationResult {

@@ -7,7 +7,7 @@ use crate::{
         annotation::Annotation,
         combinator::{Checkpoint, Delayed, LengthRepeat, TryMap},
         helpers::FoldResult,
-        num::{U16LE, U32LE},
+        num::{U8, U16LE, U32LE},
         spec::ParserSpec,
     },
 };
@@ -60,6 +60,7 @@ pub struct TDTParser {
     version: U32LE,
     strings: Delayed<Box<dyn Parser<Output = String>>>,
     indexed_string: Box<dyn Parser<Output = Option<String>>>,
+    flags: U8,
 }
 
 impl TDTParser {
@@ -69,6 +70,7 @@ impl TDTParser {
             version: U32LE,
             indexed_string: Box::new(indexed_string(strings.output())),
             strings,
+            flags: U8,
         })
     }
 }
@@ -87,6 +89,8 @@ impl Parser for TDTParser {
                 self.version.spec(),
                 self.strings.spec(),
                 self.indexed_string.spec(),
+                self.flags.spec(),
+                U16LE.spec(),
                 self.indexed_string.spec(),
                 self.indexed_string.spec(),
             ],
@@ -107,15 +111,68 @@ impl Parser for TDTParser {
                 .parse(input)
                 .fold(child_annotations, span.end, &self.name(), 2)?;
 
-        let (tgt_file, span, child_annotations) =
-            self.indexed_string
-                .parse(input)
-                .fold(child_annotations, span.end, &self.name(), 3)?;
+        let ((flags, span, child_annotations), (has_num, has_tgt_file, has_tag)) =
+            if tdt_file.is_some() {
+                let (flags, span, child_annotations) =
+                    self.flags
+                        .parse(input)
+                        .fold(child_annotations, span.end, &self.name(), 3)?;
 
-        let (tag, span, child_annotations) =
-            self.indexed_string
-                .parse(input)
-                .fold(child_annotations, span.end, &self.name(), 4)?;
+                let bools = match flags {
+                    1 | 2 => (true, true, false),
+                    8 | 0xa | 0x1a | 0x18 | 0x2a | 0x1c | 0x1e => (false, false, true),
+                    9 => (false, true, true),
+                    f => {
+                        return Err(Annotation::invalid(
+                            &self.name(),
+                            0..span.end,
+                            format!("Invalid flag value: {f:x}"),
+                            child_annotations,
+                        ));
+                    }
+                };
+
+                ((Some(flags), span, child_annotations), bools)
+            } else {
+                ((None, span, child_annotations), (false, true, true))
+            };
+
+        let (num, span, child_annotations) = if has_num {
+            let (num, span, child_annotations) =
+                U16LE
+                    .parse(input)
+                    .fold(child_annotations, span.end, &self.name(), 4)?;
+
+            (Some(num), span, child_annotations)
+        } else {
+            (None, span, child_annotations)
+        };
+
+        let (tgt_file, span, child_annotations) = if has_tgt_file {
+            let (tgt_file, span, child_annotations) = self.indexed_string.parse(input).fold(
+                child_annotations,
+                span.end,
+                &self.name(),
+                5,
+            )?;
+
+            (tgt_file, span, child_annotations)
+        } else {
+            (None, span, child_annotations)
+        };
+
+        let (tag, span, child_annotations) = if has_tag {
+            let (tag, span, child_annotations) = self.indexed_string.parse(input).fold(
+                child_annotations,
+                span.end,
+                &self.name(),
+                6,
+            )?;
+
+            (tag, span, child_annotations)
+        } else {
+            (None, span, child_annotations)
+        };
 
         // Strings table no longer needed, so move into struct
         let strings = strings.take().expect("Strings should be init from above");
@@ -124,6 +181,8 @@ impl Parser for TDTParser {
             version,
             strings,
             tdt_file,
+            flags,
+            num,
             tgt_file,
             tag,
         };
