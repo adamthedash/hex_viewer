@@ -2,6 +2,7 @@ pub mod checkpoint;
 pub mod delayed;
 pub mod length_repeat;
 pub mod map;
+pub mod optional;
 
 pub use checkpoint::Checkpoint;
 pub use delayed::Delayed;
