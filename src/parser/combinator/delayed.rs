@@ -2,6 +2,9 @@ use std::{cell::RefCell, rc::Rc};
 
 use super::super::{Parser, Result, spec::ParserSpec};
 
+/// A value which has yet to be populated
+pub type DelayedVal<T> = Rc<RefCell<Option<T>>>;
+
 /// A parser whos output can be referenced before it has been executed
 pub struct Delayed<I>
 where
@@ -9,7 +12,7 @@ where
 {
     inner: I,
     /// This will be populated / overwritten whenever the parser is ran.
-    value: Rc<RefCell<Option<I::Output>>>,
+    value: DelayedVal<I::Output>,
 }
 
 impl<I: Parser> Delayed<I> {
@@ -21,13 +24,13 @@ impl<I: Parser> Delayed<I> {
     }
 
     /// Obtain a handle to the output of this parser. May or may not be initialised yet.
-    pub fn output(&self) -> Rc<RefCell<Option<I::Output>>> {
+    pub fn output(&self) -> DelayedVal<I::Output> {
         self.value.clone()
     }
 }
 
 impl<I: Parser> Parser for Delayed<I> {
-    type Output = Rc<RefCell<Option<I::Output>>>;
+    type Output = DelayedVal<I::Output>;
 
     fn name(&self) -> String {
         self.inner.name()

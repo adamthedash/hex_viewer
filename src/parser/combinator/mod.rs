@@ -1,4 +1,5 @@
 pub mod checkpoint;
+pub mod conditional;
 pub mod delayed;
 pub mod length_repeat;
 pub mod map;
