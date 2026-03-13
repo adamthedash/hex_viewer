@@ -49,6 +49,8 @@ fn main() -> Result<()> {
     let colors = generate_colours(&parser.identifiers());
     let identifiers = parser.identifiers();
 
+    let mut show_logs = false;
+
     let mut scroll_y = 0;
     let mut errors_only = true;
 
@@ -76,6 +78,7 @@ fn main() -> Result<()> {
                         &colors,
                         &logger_state,
                         &identifiers[scroll_to_identifier],
+                        show_logs,
                     )
                 })?;
             }
@@ -134,6 +137,14 @@ fn main() -> Result<()> {
                     errors_only ^= true;
                     scroll_y = 0;
                 }
+                // Toggle show parser spec or logs
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('l'),
+                    modifiers: KeyModifiers::NONE,
+                    ..
+                }) => {
+                    show_logs ^= true;
+                }
                 // Align with parser
                 Event::Key(KeyEvent {
                     code: dir @ (KeyCode::Char('a') | KeyCode::Char('d')),
@@ -172,6 +183,7 @@ fn render(
     colors: &HashMap<String, Color>,
     tui_state: &TuiWidgetState,
     highlight: &str,
+    show_logs: bool,
 ) {
     let horizontal =
         Layout::horizontal([Constraint::Fill(1), Constraint::Percentage(20)]).spacing(1);
@@ -179,20 +191,11 @@ fn render(
 
     render_binary_view(frame, binary_area, files, colors);
 
-    // let vertical =
-    //     Layout::vertical([Constraint::Percentage(33), Constraint::Percentage(66)]).spacing(1);
-    // let [parser_area, logger] = parser_area.layout(&vertical);
-    render_parser_view(frame, parser_area, parser, colors, highlight);
-
-    // let logger_widget = TuiLoggerWidget::default()
-    //     .block(Block::bordered().title("Logs"))
-    //     .output_timestamp(None)
-    //     .output_file(false)
-    //     .output_level(None)
-    //     .output_target(false)
-    //     .output_line(false)
-    //     .state(tui_state);
-    // frame.render_widget(logger_widget, logger);
+    if show_logs {
+        render_logs(frame, parser_area, tui_state);
+    } else {
+        render_parser_view(frame, parser_area, parser, colors, highlight);
+    }
 }
 
 fn render_binary_view(
@@ -242,26 +245,23 @@ fn render_parser_view(
     colors: &HashMap<String, Color>,
     highlight: &str,
 ) {
-    // let vertical =
-    //     Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)]).spacing(1);
-    // let [top, bottom] = area.layout(&vertical);
-
     // Parser view
     let text = parser
         .to_paragraph_styled(colors, Some(highlight))
         .block(Block::bordered().title("Parser View"));
 
     frame.render_widget(text, area);
+}
 
-    // Parser names
-    // let text = Paragraph::new(
-    //     parser
-    //         .identifiers()
-    //         .into_iter()
-    //         .map(Line::raw)
-    //         .collect::<Vec<_>>(),
-    // )
-    // .block(Block::bordered().title("Parser names"));
-    //
-    // frame.render_widget(text, bottom);
+fn render_logs(frame: &mut Frame, area: Rect, tui_state: &TuiWidgetState) {
+    let logger_widget = TuiLoggerWidget::default()
+        .block(Block::bordered().title("Logs"))
+        .output_timestamp(None)
+        .output_file(false)
+        .output_level(None)
+        .output_target(false)
+        .output_line(false)
+        .state(tui_state);
+
+    frame.render_widget(logger_widget, area);
 }

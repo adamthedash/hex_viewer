@@ -54,6 +54,10 @@ impl<'a> AnnotatedFile<'a> {
 
         // Convert annotation region to screen space
         let (start, end) = self.annotation.result.span();
+        if end.is_some_and(|end| start == end) {
+            // Empty span, so don't render
+            return;
+        }
 
         let start =
             (start as isize - self.scroll_x) * BYTE_DISPLAY_WIDTH as isize + area.x as isize;

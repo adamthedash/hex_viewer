@@ -1,26 +1,24 @@
-use std::{cell::RefCell, rc::Rc};
-
 use crate::{
     dummy_data::data::TDTFileData,
     parser::{
         Parser, Result,
-        annotation::Annotation,
-        combinator::{Checkpoint, Delayed, LengthRepeat, TryMap},
-        helpers::FoldResult,
+        combinator::{
+            Checkpoint, Delayed, LengthRepeat, Map, TryMap, conditional::Cond, delayed::DelayedVal,
+        },
         num::{U8, U16LE, U32LE},
         spec::ParserSpec,
     },
 };
 
-fn strings_section() -> Delayed<Box<dyn Parser<Output = String>>> {
-    Delayed::new(Box::new(TryMap::new(
+fn strings_section() -> Delayed<impl Parser<Output = String>> {
+    Delayed::new(TryMap::new(
         LengthRepeat::new(U32LE, U16LE),
-        |data: Vec<_>| String::from_utf16(&data),
+        |data| String::from_utf16(&data),
         "utf16_to_string",
-    )) as _)
+    ))
 }
 
-fn indexed_string(strings: Rc<RefCell<Option<String>>>) -> impl Parser<Output = Option<String>> {
+fn indexed_string(strings: DelayedVal<String>) -> impl Parser<Output = Option<String>> {
     TryMap::new(
         U32LE,
         move |i| {
@@ -57,20 +55,65 @@ fn indexed_string(strings: Rc<RefCell<Option<String>>>) -> impl Parser<Output = 
 }
 
 pub struct TDTParser {
-    version: U32LE,
-    strings: Delayed<Box<dyn Parser<Output = String>>>,
-    indexed_string: Box<dyn Parser<Output = Option<String>>>,
-    flags: U8,
+    inner: Box<dyn Parser<Output = TDTFileData>>,
 }
 
 impl TDTParser {
     pub fn new() -> Checkpoint<Self> {
         let strings = strings_section();
+        let tdt_file = Delayed::new(indexed_string(strings.output()));
+        let flags = Delayed::new(Cond::new(
+            tdt_file.output(),
+            |tdt_file: &Option<_>| tdt_file.is_some(),
+            U8,
+        ));
+
+        let num = Cond::new(
+            flags.output(),
+            |f| f.is_some_and(|f| [1, 2].contains(&f)),
+            U16LE,
+        );
+
+        let tgt_file = Cond::new(
+            flags.output(),
+            |f| f.is_none_or(|f| [1, 2, 9].contains(&f)),
+            indexed_string(strings.output()),
+        );
+
+        let tag = Cond::new(
+            flags.output(),
+            |f| f.is_none_or(|f| [8, 9, 0xa, 0x1a, 0x18, 0x2a, 0x1c, 0x1e].contains(&f)),
+            indexed_string(strings.output()),
+        );
+
+        let parser = (U32LE, strings, tdt_file, flags, num, tgt_file, tag);
+        let parser = Map::new(
+            parser,
+            |(version, strings, tdt_file, flags, num, tgt_file, tag)| {
+                // Unwrap all delayed values
+                let strings = strings.take().expect("Should be init from above");
+                let tdt_file = tdt_file.take().expect("Should be init from above");
+                let flags = flags.take().expect("Should be init from above");
+
+                // Flatten conditionals
+                let tgt_file = tgt_file.flatten();
+                let tag = tag.flatten();
+
+                TDTFileData {
+                    version,
+                    strings,
+                    tdt_file,
+                    flags,
+                    num,
+                    tgt_file,
+                    tag,
+                }
+            },
+            "tdt_file",
+        );
+
         Checkpoint(Self {
-            version: U32LE,
-            indexed_string: Box::new(indexed_string(strings.output())),
-            strings,
-            flags: U8,
+            inner: Box::new(parser),
         })
     }
 }
@@ -79,118 +122,15 @@ impl Parser for TDTParser {
     type Output = TDTFileData;
 
     fn name(&self) -> String {
-        "tdt_file".to_owned()
+        self.inner.name()
     }
 
     fn spec(&self) -> ParserSpec {
-        ParserSpec {
-            name: self.name(),
-            inner: vec![
-                self.version.spec(),
-                self.strings.spec(),
-                self.indexed_string.spec(),
-                self.flags.spec(),
-                U16LE.spec(),
-                self.indexed_string.spec(),
-                self.indexed_string.spec(),
-            ],
-        }
+        self.inner.spec()
     }
 
     fn parse(&mut self, input: &mut &[u8]) -> Result<Self::Output> {
-        let (version, span, child_annotations) =
-            self.version.parse(input).fold(vec![], 0, &self.name(), 0)?;
-
-        let (strings, span, child_annotations) =
-            self.strings
-                .parse(input)
-                .fold(child_annotations, span.end, &self.name(), 1)?;
-
-        let (tdt_file, span, child_annotations) =
-            self.indexed_string
-                .parse(input)
-                .fold(child_annotations, span.end, &self.name(), 2)?;
-
-        let ((flags, span, child_annotations), (has_num, has_tgt_file, has_tag)) =
-            if tdt_file.is_some() {
-                let (flags, span, child_annotations) =
-                    self.flags
-                        .parse(input)
-                        .fold(child_annotations, span.end, &self.name(), 3)?;
-
-                let bools = match flags {
-                    1 | 2 => (true, true, false),
-                    8 | 0xa | 0x1a | 0x18 | 0x2a | 0x1c | 0x1e => (false, false, true),
-                    9 => (false, true, true),
-                    f => {
-                        return Err(Annotation::invalid(
-                            &self.name(),
-                            0..span.end,
-                            format!("Invalid flag value: {f:x}"),
-                            child_annotations,
-                        ));
-                    }
-                };
-
-                ((Some(flags), span, child_annotations), bools)
-            } else {
-                ((None, span, child_annotations), (false, true, true))
-            };
-
-        let (num, span, child_annotations) = if has_num {
-            let (num, span, child_annotations) =
-                U16LE
-                    .parse(input)
-                    .fold(child_annotations, span.end, &self.name(), 4)?;
-
-            (Some(num), span, child_annotations)
-        } else {
-            (None, span, child_annotations)
-        };
-
-        let (tgt_file, span, child_annotations) = if has_tgt_file {
-            let (tgt_file, span, child_annotations) = self.indexed_string.parse(input).fold(
-                child_annotations,
-                span.end,
-                &self.name(),
-                5,
-            )?;
-
-            (tgt_file, span, child_annotations)
-        } else {
-            (None, span, child_annotations)
-        };
-
-        let (tag, span, child_annotations) = if has_tag {
-            let (tag, span, child_annotations) = self.indexed_string.parse(input).fold(
-                child_annotations,
-                span.end,
-                &self.name(),
-                6,
-            )?;
-
-            (tag, span, child_annotations)
-        } else {
-            (None, span, child_annotations)
-        };
-
-        // Strings table no longer needed, so move into struct
-        let strings = strings.take().expect("Strings should be init from above");
-
-        let tdt_file = TDTFileData {
-            version,
-            strings,
-            tdt_file,
-            flags,
-            num,
-            tgt_file,
-            tag,
-        };
-
-        let annotation =
-            Annotation::success(&self.name(), 0..span.end, &tdt_file, child_annotations);
-
-        Ok((tdt_file, annotation))
+        self.inner.parse(input)
     }
 }
 
