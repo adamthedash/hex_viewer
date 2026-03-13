@@ -19,10 +19,7 @@ where
     }
 
     fn spec(&self) -> ParserSpec {
-        ParserSpec {
-            name: self.name(),
-            inner: vec![self.0.spec()],
-        }
+        ParserSpec::new(self.name(), vec![self.0.spec()])
     }
 
     fn parse(&mut self, input: &mut &[u8]) -> Result<Self::Output> {

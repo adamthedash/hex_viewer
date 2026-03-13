@@ -22,10 +22,7 @@ macro_rules! impl_parser_for_tuple {
                 }
 
                 fn spec(&self) -> crate::parser::spec::ParserSpec {
-                    ParserSpec {
-                        name: self.name(),
-                        inner: vec![$( self.$idx.spec() ),+],
-                    }
+                    ParserSpec::new(self.name(), vec![$( self.$idx.spec() ),+])
                 }
 
                 fn parse(&mut self, input: &mut &[u8]) -> crate::parser::Result<Self::Output> {

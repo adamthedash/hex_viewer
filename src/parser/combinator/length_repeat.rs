@@ -35,10 +35,7 @@ where
     }
 
     fn spec(&self) -> ParserSpec {
-        ParserSpec {
-            name: self.name(),
-            inner: vec![self.length.spec(), self.value.spec()],
-        }
+        ParserSpec::new(self.name(), vec![self.length.spec(), self.value.spec()])
     }
 
     fn parse(&mut self, input: &mut &[u8]) -> Result<Self::Output> {
@@ -110,6 +107,7 @@ mod tests {
         let expected = ParserSpec {
             name: "length_repeat".to_owned(),
             inner: vec![ParserSpec::empty("le_u32"), ParserSpec::empty("le_u16")],
+            friendly_name: None,
         };
 
         assert_eq!(expected, spec);
