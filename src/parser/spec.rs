@@ -18,7 +18,7 @@ impl ParserSpec {
     pub fn new(name: impl Into<String>, children: Vec<ParserSpec>) -> Self {
         Self {
             name: name.into(),
-            inner: vec![],
+            inner: children,
             friendly_name: None,
         }
     }
